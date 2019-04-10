@@ -1,0 +1,9 @@
+# File types
+*.o
+*.swp
+
+# Files
+sim/predictor
+
+# folders
+traces/
