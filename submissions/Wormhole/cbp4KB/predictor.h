@@ -58,49 +58,49 @@ UINT32 multidim_idx = 0;
 
 #include <inttypes.h>
 #include <math.h>
-//#define SHARINGTABLES		// let us share the physical among several logic predictor tables
-#define INITHISTLENGTH		// uses the "best" history length we found
-#define STATCOR			// Use the Statistical Corrector predictor
-#define LOOPPREDICTOR		// Use the loop predictor
+//#define SHARINGTABLES     // let us share the physical among several logic predictor tables
+#define INITHISTLENGTH      // uses the "best" history length we found
+#define STATCOR         // Use the Statistical Corrector predictor
+#define LOOPPREDICTOR       // Use the loop predictor
 
-#define NHIST 12		// 15 tagged tables + 1 bimodal table
-#define LOGB 13			// log of number of entries in bimodal predictor
-#define HYSTSHIFT 2		// sharing an hysteris bit between 4 bimodal predictor entries
-#define LOGG (LOGB-7)		// initial definition was with 2K entries per tagged tables
+#define NHIST 12        // 15 tagged tables + 1 bimodal table
+#define LOGB 13         // log of number of entries in bimodal predictor
+#define HYSTSHIFT 2     // sharing an hysteris bit between 4 bimodal predictor entries
+#define LOGG (LOGB-7)       // initial definition was with 2K entries per tagged tables
 #define UBITS 3
 //The Best  set of history lengths
-//int m[NHIST + 1] =		{0, 3, 8, 12, 17, 33, 35, 67, 97, 138, 195, 330, 517, 1193, 1741, 1930};
+//int m[NHIST + 1] =        {0, 3, 8, 12, 17, 33, 35, 67, 97, 138, 195, 330, 517, 1193, 1741, 1930};
 int m[NHIST + 1] =        {0, 3, 8, 12, 17, 33, 35, 67, 97, 138, 195, 330, 517};
 
 #ifndef INITHISLENGTH
-#define MINHIST 8		// shortest history length
-#define MAXHIST 2000		// longest history length
+#define MINHIST 8       // shortest history length
+#define MAXHIST 2000        // longest history length
 #endif
 
-#define PHISTWIDTH 16		// width of the path history
+#define PHISTWIDTH 16       // width of the path history
 
 #ifndef SHARINGTABLES
 #define TBITS 6
 #define MAXTBITS 15
 #endif
 
-#define CWIDTH 3		// predictor counter width on the tagged tables
-#define HISTBUFFERLENGTH 4096	// we use a 4K entries history buffer to store the branch history
+#define CWIDTH 3        // predictor counter width on the tagged tables
+#define HISTBUFFERLENGTH 4096   // we use a 4K entries history buffer to store the branch history
 
 //Statistical corrector parameters
 #define NSTAT 5
 #define CSTAT 6
-#define LOGStatCor (LOGG+1)	// the Statistical Corrector predictor features 5 * 1K entries
+#define LOGStatCor (LOGG+1) // the Statistical Corrector predictor features 5 * 1K entries
 int8_t StatCor[1 << (LOGStatCor)];
 int8_t USESTATCORTHRESHOLD;
 int8_t CountStatCorThreshold;
 #define MINUSESTATCORTHRESHOLD 5
-#define MAXUSESTATCORTHRESHOLD 31	//just as a security, never reach this limit
+#define MAXUSESTATCORTHRESHOLD 31   //just as a security, never reach this limit
 #define UPDATESTATCORTHRESHOLD (21+  8*USESTATCORTHRESHOLD)
 
-#define LOGL 6			//64 entries loop predictor 4-way skewed associative
-#define WIDTHNBITERLOOP 10	// we predict only loops with less than 1K iterations
-#define LOOPTAG 10		//tag width in the loop predictor
+#define LOGL 6          //64 entries loop predictor 4-way skewed associative
+#define WIDTHNBITERLOOP 10  // we predict only loops with less than 1K iterations
+#define LOOPTAG 10      //tag width in the loop predictor
 
 // utility class for index computation
 // this is the cyclic shift register for folding 
@@ -135,16 +135,16 @@ public:
 };
 
 #ifdef LOOPPREDICTOR
-class lentry			//loop predictor entry
+class lentry            //loop predictor entry
 {
 public:
-  uint16_t NbIter;		//10 bits
-  uint8_t confid;		// 3 bits
-  uint16_t CurrentIter;		// 10 bits
-  uint16_t CurrentIterSpec;	// 10 bits
-  uint16_t TAG;			// 10 bits
-  uint8_t age;			//3 bits
-  bool dir;			// 1 bit
+  uint16_t NbIter;      //10 bits
+  uint8_t confid;       // 3 bits
+  uint16_t CurrentIter;     // 10 bits
+  uint16_t CurrentIterSpec; // 10 bits
+  uint16_t TAG;         // 10 bits
+  uint8_t age;          //3 bits
+  bool dir;         // 1 bit
 
   //47 bits per entry    
     lentry ()
@@ -161,7 +161,7 @@ public:
 };
 #endif
 
-class bentry			// TAGE bimodal table entry  
+class bentry            // TAGE bimodal table entry  
 {
 public:
   int8_t hyst;
@@ -172,7 +172,7 @@ public:
     hyst = 1;
   }
 };
-class gentry			// TAGE global table entry
+class gentry            // TAGE global table entry
 {
 public:
   int8_t ctr;
@@ -185,46 +185,46 @@ public:
     u = 0;
   }
 };
-int8_t USE_ALT_ON_NA;		// "Use alternate prediction on newly allocated":  a 4-bit counter  to determine whether the newly allocated entries should be considered as  valid or not for delivering  the prediction
-int TICK, LOGTICK;		//control counter for the smooth resetting of useful counters
-int phist;			// use a path history as on  the OGEHL predictor
-int Fetch_phist;		//path history
+int8_t USE_ALT_ON_NA;       // "Use alternate prediction on newly allocated":  a 4-bit counter  to determine whether the newly allocated entries should be considered as  valid or not for delivering  the prediction
+int TICK, LOGTICK;      //control counter for the smooth resetting of useful counters
+int phist;          // use a path history as on  the OGEHL predictor
+int Fetch_phist;        //path history
 uint8_t ghist[HISTBUFFERLENGTH];
 int Retire_ptghist;
-int Retire_phist;		//path history
-folded_history Retire_ch_i[NHIST + 1];	//utility for computing TAGE indices
-folded_history Retire_ch_t[2][NHIST + 1];	//utility for computing TAGE tags
+int Retire_phist;       //path history
+folded_history Retire_ch_i[NHIST + 1];  //utility for computing TAGE indices
+folded_history Retire_ch_t[2][NHIST + 1];   //utility for computing TAGE tags
 
 #ifdef LOOPPREDICTOR
-lentry *ltable;			//loop predictor table
+lentry *ltable;         //loop predictor table
 //variables for the loop predictor
-bool predloop;			// loop predictor prediction
+bool predloop;          // loop predictor prediction
 int LIB;
 int LI;
-int LHIT;			//hitting way in the loop predictor
-int LTAG;			//tag on the loop predictor
-bool LVALID;			// validity of the loop predictor prediction
-int8_t WITHLOOP;		// counter to monitor whether or not loop prediction is beneficial
+int LHIT;           //hitting way in the loop predictor
+int LTAG;           //tag on the loop predictor
+bool LVALID;            // validity of the loop predictor prediction
+int8_t WITHLOOP;        // counter to monitor whether or not loop prediction is beneficial
 #endif
 
 //For the TAGE predictor
-bentry *btable;			//bimodal TAGE table
-gentry *gtable[NHIST + 1];	// tagged TAGE tables
-int TB[NHIST + 1];		// tag width for the different tagged tables
-int logg[NHIST + 1];		// log of number entries of the different tagged tables
+bentry *btable;         //bimodal TAGE table
+gentry *gtable[NHIST + 1];  // tagged TAGE tables
+int TB[NHIST + 1];      // tag width for the different tagged tables
+int logg[NHIST + 1];        // log of number entries of the different tagged tables
 
-int GI[NHIST + 1];		// indexes to the different tables are computed only once  
-int GTAG[NHIST + 1];		// tags for the different tables are computed only once  
-int BI;				// index of the bimodal table
+int GI[NHIST + 1];      // indexes to the different tables are computed only once  
+int GTAG[NHIST + 1];        // tags for the different tables are computed only once  
+int BI;             // index of the bimodal table
 
-bool pred_taken;		// prediction
-bool alttaken;			// alternate  TAGEprediction
-bool tage_pred;			// TAGE prediction
+bool pred_taken;        // prediction
+bool alttaken;          // alternate  TAGEprediction
+bool tage_pred;         // TAGE prediction
 bool LongestMatchPred;
-int HitBank;			// longest matching bank
-int AltBank;			// alternate matching bank
+int HitBank;            // longest matching bank
+int AltBank;            // alternate matching bank
 
-int Seed;			// for the pseudo-random number generator
+int Seed;           // for the pseudo-random number generator
 
 class my_predictor
 {
@@ -250,15 +250,15 @@ public:
     m[NHIST] = MAXHIST;
     for (int i = 2; i <= NHIST; i++)
       {
-	m[i] = (int) (((double) MINHIST *
-		       pow ((double) (MAXHIST) /
-			    (double) MINHIST,
-			    (double) (i -
-				      1) / (double) ((NHIST - 1)))) + 0.5);
+    m[i] = (int) (((double) MINHIST *
+               pow ((double) (MAXHIST) /
+                (double) MINHIST,
+                (double) (i -
+                      1) / (double) ((NHIST - 1)))) + 0.5);
       }
     for (int i = 2; i <= NHIST; i++)
       if (m[i] <= m[i - 1] + 2)
-	m[i] = m[i - 1] + 2;
+    m[i] = m[i - 1] + 2;
 #endif
 
 #ifndef SHARINGTABLES
@@ -268,7 +268,7 @@ public:
     for (int i = 1; i <= NHIST; i++)
 
       if (TB[i] > MAXTBITS)
-	TB[i] = MAXTBITS;
+    TB[i] = MAXTBITS;
 // log2 of number entries in the tagged components
     for (int i = 1; i <= 3; i++)
       logg[i] = LOGG;
@@ -280,7 +280,7 @@ public:
       logg[i] = LOGG - 1;
     for (int i = 1; i <= NHIST; i++)
       {
-	gtable[i] = new gentry[1 << (logg[i])];
+    gtable[i] = new gentry[1 << (logg[i])];
       }
 #endif
 
@@ -294,13 +294,13 @@ public:
     logg[STEP2] = LOGG + 2;
     logg[STEP3] = LOGG - 1;
     for (int i = 2; i <= STEP1 - 1; i++)
-      logg[i] = logg[1] - 3;	/* grouped together 4Kentries */
+      logg[i] = logg[1] - 3;    /* grouped together 4Kentries */
     for (int i = STEP1 + 1; i <= STEP2 - 1; i++)
-      logg[i] = logg[STEP1] - 3;	/*grouped together 16K entries */
+      logg[i] = logg[STEP1] - 3;    /*grouped together 16K entries */
     for (int i = STEP2 + 1; i <= STEP3 - 1; i++)
-      logg[i] = logg[STEP2] - 3;	/*grouped together 8K entries */
+      logg[i] = logg[STEP2] - 3;    /*grouped together 8K entries */
     for (int i = STEP3 + 1; i <= NHIST; i++)
-      logg[i] = logg[STEP3] - 3;	/*grouped together 1Kentries */
+      logg[i] = logg[STEP3] - 3;    /*grouped together 1Kentries */
     gtable[1] = new gentry[1 << logg[1]];
     gtable[STEP1] = new gentry[1 << logg[STEP1]];
     gtable[STEP2] = new gentry[1 << logg[STEP2]];
@@ -309,32 +309,32 @@ public:
 //grouped tables have the same tag width
     for (int i = 1; i <= STEP1 - 1; i++)
       {
-	gtable[i] = gtable[1];
-	TB[i] = 8;
+    gtable[i] = gtable[1];
+    TB[i] = 8;
       }
     for (int i = STEP1; i <= STEP2 - 1; i++)
       {
-	gtable[i] = gtable[STEP1];
-	TB[i] = 11;
+    gtable[i] = gtable[STEP1];
+    TB[i] = 11;
       }
     for (int i = STEP2; i <= STEP3 - 1; i++)
       {
-	gtable[i] = gtable[STEP2];
-	TB[i] = 13;
+    gtable[i] = gtable[STEP2];
+    TB[i] = 13;
       }
     for (int i = STEP3; i <= NHIST; i++)
       {
-	gtable[i] = gtable[STEP3];
-	TB[i] = 14;
+    gtable[i] = gtable[STEP3];
+    TB[i] = 14;
       }
 #endif
 //initialisation of the functions for index and tag computations
 
     for (int i = 1; i <= NHIST; i++)
       {
-	Retire_ch_i[i].init (m[i], (logg[i]));
-	Retire_ch_t[0][i].init (Retire_ch_i[i].OLENGTH, TB[i]);
-	Retire_ch_t[1][i].init (Retire_ch_i[i].OLENGTH, TB[i] - 1);
+    Retire_ch_i[i].init (m[i], (logg[i]));
+    Retire_ch_t[0][i].init (Retire_ch_i[i].OLENGTH, TB[i]);
+    Retire_ch_t[1][i].init (Retire_ch_i[i].OLENGTH, TB[i] - 1);
       }
 
 //allocation of the all predictor tables
@@ -354,8 +354,8 @@ public:
 #ifndef SHARINGTABLES
     for (int i = 1; i <= NHIST; i++)
       {
-	STORAGESIZE += (1 << logg[i]) * (CWIDTH + UBITS + TB[i]);
-	NBENTRY += (1 << logg[i]);
+    STORAGESIZE += (1 << logg[i]) * (CWIDTH + UBITS + TB[i]);
+    NBENTRY += (1 << logg[i]);
       }
 #endif
 #ifdef SHARINGTABLES
@@ -370,7 +370,7 @@ public:
     fprintf (stdout, "history lengths:");
     for (int i = 1; i <= NHIST; i++)
       {
-	fprintf (stdout, "%d ", m[i]);
+    fprintf (stdout, "%d ", m[i]);
       }
     fprintf (stdout, "\n");
     STORAGESIZE += (1 << LOGB) + (1 << (LOGB - HYSTSHIFT)) + 524*8;
@@ -380,7 +380,7 @@ public:
 #ifdef LOOPPREDICTOR
     STORAGESIZE += (1 << LOGL) * (3 * WIDTHNBITERLOOP + LOOPTAG + 3 + 3 + 1);
     fprintf (stdout, "LOOPPRED %d bytes, ",
-	     ((1 << LOGL) * (3 * WIDTHNBITERLOOP + LOOPTAG + 3 + 3 + 1)) / 8);
+         ((1 << LOGL) * (3 * WIDTHNBITERLOOP + LOOPTAG + 3 + 3 + 1)) / 8);
 #endif
 
 #ifdef STATCOR
@@ -431,7 +431,7 @@ public:
 
   //  tag computation
   uint16_t gtag (unsigned int pc, int bank, folded_history * ch0,
-		 folded_history * ch1)
+         folded_history * ch1)
   {
     int tag = pc ^ ch0[bank].comp ^ (ch1[bank].comp << 1);
     return (tag & ((1 << TB[bank]) - 1));
@@ -442,13 +442,13 @@ public:
   {
     if (taken)
       {
-	if (ctr < ((1 << (nbits - 1)) - 1))
-	  ctr++;
+    if (ctr < ((1 << (nbits - 1)) - 1))
+      ctr++;
       }
     else
       {
-	if (ctr > -(1 << (nbits - 1)))
-	  ctr--;
+    if (ctr > -(1 << (nbits - 1)))
+      ctr--;
       }
   }
   bool getbim ()
@@ -461,8 +461,8 @@ public:
     int inter = (btable[BI].pred << 1) + btable[BI >> HYSTSHIFT].hyst;
     if (Taken)
       {
-	if (inter < 3)
-	  inter += 1;
+    if (inter < 3)
+      inter += 1;
       }
     else if (inter > 0)
       inter--;
@@ -504,12 +504,12 @@ public:
 
     for (int i = 0; i < 4; i++)
       {
-	int index = (LI ^ ((LIB >> i) << 2)) + i;
+    int index = (LI ^ ((LIB >> i) << 2)) + i;
 
-	if (ltable[index].TAG == LTAG)
-	  {
-	    LHIT = i;
-	    LVALID = (ltable[index].confid == 7);
+    if (ltable[index].TAG == LTAG)
+      {
+        LHIT = i;
+        LVALID = (ltable[index].confid == 7);
 
         {   /*** Multi-dimensional history predictor ***/
             if (LVALID) {
@@ -517,9 +517,9 @@ public:
             }
         }
         
-	    if (ltable[index].CurrentIter + 1 == ltable[index].NbIter)
-	      return (!(ltable[index].dir));
-	    else
+        if (ltable[index].CurrentIter + 1 == ltable[index].NbIter)
+          return (!(ltable[index].dir));
+        else
         {
 
             {   /*** Multi-dimensional history predictor ***/
@@ -532,9 +532,9 @@ public:
                 }
             }
             
-	        return ((ltable[index].dir));
+            return ((ltable[index].dir));
         }
-	  }
+      }
       }
 
     LVALID = false;
@@ -545,95 +545,95 @@ public:
   {
     if (LHIT >= 0)
       {
-	int index = (LI ^ ((LIB >> LHIT) << 2)) + LHIT;
+    int index = (LI ^ ((LIB >> LHIT) << 2)) + LHIT;
 //already a hit 
-	if (LVALID)
-	  {
-	    if (Taken != predloop)
-	      {
+    if (LVALID)
+      {
+        if (Taken != predloop)
+          {
 // free the entry
-		ltable[index].NbIter = 0;
-		ltable[index].age = 0;
-		ltable[index].confid = 0;
-		ltable[index].CurrentIter = 0;
-		return;
+        ltable[index].NbIter = 0;
+        ltable[index].age = 0;
+        ltable[index].confid = 0;
+        ltable[index].CurrentIter = 0;
+        return;
 
-	      }
-	    else if ((predloop != tage_pred) || ((MYRANDOM () & 7) == 0))
-	      if (ltable[index].age < 7)
-		ltable[index].age++;
-	  }
+          }
+        else if ((predloop != tage_pred) || ((MYRANDOM () & 7) == 0))
+          if (ltable[index].age < 7)
+        ltable[index].age++;
+      }
 
-	ltable[index].CurrentIter++;
-	ltable[index].CurrentIter &= ((1 << WIDTHNBITERLOOP) - 1);
-	//loop with more than 2** WIDTHNBITERLOOP iterations are not treated correctly; but who cares :-)
-	if (ltable[index].CurrentIter > ltable[index].NbIter)
-	  {
-	    ltable[index].confid = 0;
-	    ltable[index].NbIter = 0;
+    ltable[index].CurrentIter++;
+    ltable[index].CurrentIter &= ((1 << WIDTHNBITERLOOP) - 1);
+    //loop with more than 2** WIDTHNBITERLOOP iterations are not treated correctly; but who cares :-)
+    if (ltable[index].CurrentIter > ltable[index].NbIter)
+      {
+        ltable[index].confid = 0;
+        ltable[index].NbIter = 0;
 //treat like the 1st encounter of the loop 
-	  }
-	if (Taken != ltable[index].dir)
-	  {
-	    if (ltable[index].CurrentIter == ltable[index].NbIter)
-	      {
-		if (ltable[index].confid < 7)
-		  ltable[index].confid++;
-		if (ltable[index].NbIter < 3)
-		  //just do not predict when the loop count is 1 or 2     
-		  {
+      }
+    if (Taken != ltable[index].dir)
+      {
+        if (ltable[index].CurrentIter == ltable[index].NbIter)
+          {
+        if (ltable[index].confid < 7)
+          ltable[index].confid++;
+        if (ltable[index].NbIter < 3)
+          //just do not predict when the loop count is 1 or 2     
+          {
 // free the entry
-		    ltable[index].dir = Taken;
-		    ltable[index].NbIter = 0;
-		    ltable[index].age = 0;
-		    ltable[index].confid = 0;
-		  }
-	      }
-	    else
-	      {
-		if (ltable[index].NbIter == 0)
-		  {
+            ltable[index].dir = Taken;
+            ltable[index].NbIter = 0;
+            ltable[index].age = 0;
+            ltable[index].confid = 0;
+          }
+          }
+        else
+          {
+        if (ltable[index].NbIter == 0)
+          {
 // first complete nest;
-		    ltable[index].confid = 0;
-		    ltable[index].NbIter = ltable[index].CurrentIter;
-		  }
-		else
-		  {
+            ltable[index].confid = 0;
+            ltable[index].NbIter = ltable[index].CurrentIter;
+          }
+        else
+          {
 //not the same number of iterations as last time: free the entry
-		    ltable[index].NbIter = 0;
-		    ltable[index].confid = 0;
-		  }
-	      }
-	    ltable[index].CurrentIter = 0;
-	  }
+            ltable[index].NbIter = 0;
+            ltable[index].confid = 0;
+          }
+          }
+        ltable[index].CurrentIter = 0;
+      }
 
       }
     else if (ALLOC)
 
       {
-	uint32_t X = MYRANDOM () & 3;
+    uint32_t X = MYRANDOM () & 3;
 
-	if ((MYRANDOM () & 3) == 0)
-	  for (int i = 0; i < 4; i++)
-	    {
-	      int LHIT = (X + i) & 3;
-	      int index = (LI ^ ((LIB >> LHIT) << 2)) + LHIT;
-	      if (ltable[index].age == 0)
-		{
-		  ltable[index].dir = !Taken;
+    if ((MYRANDOM () & 3) == 0)
+      for (int i = 0; i < 4; i++)
+        {
+          int LHIT = (X + i) & 3;
+          int index = (LI ^ ((LIB >> LHIT) << 2)) + LHIT;
+          if (ltable[index].age == 0)
+        {
+          ltable[index].dir = !Taken;
 // most of mispredictions are on last iterations
-		  ltable[index].TAG = LTAG;
-		  ltable[index].NbIter = 0;
-		  ltable[index].age = 7;
-		  ltable[index].confid = 0;
-		  ltable[index].CurrentIter = 0;
-		  break;
+          ltable[index].TAG = LTAG;
+          ltable[index].NbIter = 0;
+          ltable[index].age = 7;
+          ltable[index].confid = 0;
+          ltable[index].CurrentIter = 0;
+          break;
 
-		}
-	      else
-		ltable[index].age--;
-	      break;
-	    }
+        }
+          else
+        ltable[index].age--;
+          break;
+        }
       }
   }
 #endif
@@ -646,43 +646,43 @@ public:
 //Look for the bank with longest matching history
     for (int i = NHIST; i > 0; i--)
       {
-	if (gtable[i][GI[i]].tag == GTAG[i])
-	  {
-	    HitBank = i;
-	    break;
-	  }
+    if (gtable[i][GI[i]].tag == GTAG[i])
+      {
+        HitBank = i;
+        break;
+      }
       }
 //Look for the alternate bank
     for (int i = HitBank - 1; i > 0; i--)
       {
-	if (gtable[i][GI[i]].tag == GTAG[i])
-	  {
+    if (gtable[i][GI[i]].tag == GTAG[i])
+      {
 
-	    AltBank = i;
-	    break;
-	  }
+        AltBank = i;
+        break;
+      }
       }
 //computes the prediction and the alternate prediction
     if (HitBank > 0)
       {
-	if (AltBank > 0)
-	  alttaken = (gtable[AltBank][GI[AltBank]].ctr >= 0);
-	else
-	  alttaken = getbim ();
-	LongestMatchPred = (gtable[HitBank][GI[HitBank]].ctr >= 0);
+    if (AltBank > 0)
+      alttaken = (gtable[AltBank][GI[AltBank]].ctr >= 0);
+    else
+      alttaken = getbim ();
+    LongestMatchPred = (gtable[HitBank][GI[HitBank]].ctr >= 0);
 //if the entry is recognized as a newly allocated entry and 
 //USE_ALT_ON_NA is positive  use the alternate prediction
-	if ((USE_ALT_ON_NA < 0)
-	    || (abs (2 * gtable[HitBank][GI[HitBank]].ctr + 1) > 1))
-	  tage_pred = LongestMatchPred;
-	else
-	  tage_pred = alttaken;
+    if ((USE_ALT_ON_NA < 0)
+        || (abs (2 * gtable[HitBank][GI[HitBank]].ctr + 1) > 1))
+      tage_pred = LongestMatchPred;
+    else
+      tage_pred = alttaken;
       }
     else
       {
-	alttaken = getbim ();
-	tage_pred = alttaken;
-	LongestMatchPred = alttaken;
+    alttaken = getbim ();
+    tage_pred = alttaken;
+    LongestMatchPred = alttaken;
 
       }
   }
@@ -693,63 +693,63 @@ public:
     //if (brtype & IS_BR_CONDITIONAL)
       {
 // computes the TAGE table addresses and the partial tags
-	for (int i = 1; i <= NHIST; i++)
-	  {
-	    GI[i] = gindex (pc, i, Retire_phist, Retire_ch_i);
-	    GTAG[i] = gtag (pc, i, Retire_ch_t[0], Retire_ch_t[1]);
-	  }
+    for (int i = 1; i <= NHIST; i++)
+      {
+        GI[i] = gindex (pc, i, Retire_phist, Retire_ch_i);
+        GTAG[i] = gtag (pc, i, Retire_ch_t[0], Retire_ch_t[1]);
+      }
 #ifdef SHARINGTABLES
-	for (int i = 2; i <= STEP1 - 1; i++)
-	  GI[i] = ((GI[1] & 7) ^ (i - 1)) + (GI[i] << 3);
-	for (int i = STEP1 + 1; i <= STEP2 - 1; i++)
-	  GI[i] = ((GI[STEP1] & 7) ^ (i - STEP1)) + (GI[i] << 3);
-	for (int i = STEP2 + 1; i <= STEP3 - 1; i++)
-	  GI[i] = ((GI[STEP2] & 7) ^ (i - STEP2)) + (GI[i] << 3);
-	for (int i = STEP3 + 1; i <= NHIST; i++)
-	  GI[i] = ((GI[STEP3] & 7) ^ (i - STEP3)) + (GI[i] << 3);
+    for (int i = 2; i <= STEP1 - 1; i++)
+      GI[i] = ((GI[1] & 7) ^ (i - 1)) + (GI[i] << 3);
+    for (int i = STEP1 + 1; i <= STEP2 - 1; i++)
+      GI[i] = ((GI[STEP1] & 7) ^ (i - STEP1)) + (GI[i] << 3);
+    for (int i = STEP2 + 1; i <= STEP3 - 1; i++)
+      GI[i] = ((GI[STEP2] & 7) ^ (i - STEP2)) + (GI[i] << 3);
+    for (int i = STEP3 + 1; i <= NHIST; i++)
+      GI[i] = ((GI[STEP3] & 7) ^ (i - STEP3)) + (GI[i] << 3);
 #endif
-	BI = pc & ((1 << LOGB) - 1);
-	Tagepred ();
+    BI = pc & ((1 << LOGB) - 1);
+    Tagepred ();
 
-	pred_taken = tage_pred;
+    pred_taken = tage_pred;
 #ifdef STATCOR
 //access the Statistical Corrector Predictor
 //The Statistical Corrector is derived from GEHL
-	if (HitBank >= 1)
-	  {
-	    int IndStatCor[NSTAT];
-	    int8_t p[NSTAT];
-	    int Sum = 0;
+    if (HitBank >= 1)
+      {
+        int IndStatCor[NSTAT];
+        int8_t p[NSTAT];
+        int Sum = 0;
 
-	    Sum += 8 * (2 * gtable[HitBank][GI[HitBank]].ctr + 1);
+        Sum += 8 * (2 * gtable[HitBank][GI[HitBank]].ctr + 1);
 //biased the sum towards what is predicted by TAGE
 //the stronger the prediction the stronger the bias
-	    GI[0] = BI;
-	    for (int i = 0; i < NSTAT; i++)
-	      {
-		IndStatCor[i] = GI[i];
-		if (i != 0)
-		  {
-		    IndStatCor[i] <<= 3;
-		    IndStatCor[i] ^= (pc ^ i) & 7;
-		  }
-		IndStatCor[i] <<= 1;
-		IndStatCor[i] += tage_pred;
-		IndStatCor[i] &= ((1 << (LOGStatCor)) - 1);
-		p[i] = (StatCor[IndStatCor[i]]);
-		Sum += (2 * p[i] + 1);
+        GI[0] = BI;
+        for (int i = 0; i < NSTAT; i++)
+          {
+        IndStatCor[i] = GI[i];
+        if (i != 0)
+          {
+            IndStatCor[i] <<= 3;
+            IndStatCor[i] ^= (pc ^ i) & 7;
+          }
+        IndStatCor[i] <<= 1;
+        IndStatCor[i] += tage_pred;
+        IndStatCor[i] &= ((1 << (LOGStatCor)) - 1);
+        p[i] = (StatCor[IndStatCor[i]]);
+        Sum += (2 * p[i] + 1);
 
-	      }
-	    bool pred = (Sum >= 0);
-	    if (abs (Sum) >= USESTATCORTHRESHOLD)
-	      {
-		pred_taken = pred;	//Use only if very confident 
-	      }
-	  }
+          }
+        bool pred = (Sum >= 0);
+        if (abs (Sum) >= USESTATCORTHRESHOLD)
+          {
+        pred_taken = pred;  //Use only if very confident 
+          }
+      }
 #endif
 #ifdef LOOPPREDICTOR
-	predloop = getloop (pc);	// loop prediction
-	pred_taken = ((WITHLOOP >= 0) && (LVALID)) ? predloop : pred_taken;
+    predloop = getloop (pc);    // loop prediction
+    pred_taken = ((WITHLOOP >= 0) && (LVALID)) ? predloop : pred_taken;
 #endif
       }
       
@@ -796,8 +796,8 @@ public:
   }
 
   void HistoryUpdate (uint32_t pc, bool taken,
-		      uint32_t target, int &X, int &Y, folded_history * H,
-		      folded_history * G, folded_history * J)
+              uint32_t target, int &X, int &Y, folded_history * H,
+              folded_history * G, folded_history * J)
   {
     int maxt = 1;
 
@@ -805,57 +805,57 @@ public:
     int PATH = pc;
     for (int t = 0; t < maxt; t++)
       {
-	bool istaken = (T & 1);
-	T >>= 1;
-	bool PATHBIT = (PATH & 1);
-	PATH >>= 1;
+    bool istaken = (T & 1);
+    T >>= 1;
+    bool PATHBIT = (PATH & 1);
+    PATH >>= 1;
 //update  history
-	Y--;
-	ghist[Y & (HISTBUFFERLENGTH - 1)] = istaken;
-	X = (X << 1) + PATHBIT;
-	X = (X & ((1 << PHISTWIDTH) - 1));
+    Y--;
+    ghist[Y & (HISTBUFFERLENGTH - 1)] = istaken;
+    X = (X << 1) + PATHBIT;
+    X = (X & ((1 << PHISTWIDTH) - 1));
 //prepare next index and tag computations for user branchs 
-	for (int i = 1; i <= NHIST; i++)
-	  {
-	    H[i].update (ghist, Y);
-	    G[i].update (ghist, Y);
-	    J[i].update (ghist, Y);
-	  }
+    for (int i = 1; i <= NHIST; i++)
+      {
+        H[i].update (ghist, Y);
+        G[i].update (ghist, Y);
+        J[i].update (ghist, Y);
+      }
       }
   }
 
   // PREDICTOR UPDATE
 
   void update_brcond (uint32_t pc, bool taken,
-		      uint32_t target)
+              uint32_t target)
   {
     //if (brtype & IS_BR_CONDITIONAL)
       {
 #ifdef STATCOR
-	if (HitBank >= 1)
-	  {
-	    int IndStatCor[NSTAT];
-	    int8_t p[NSTAT];
-	    int Sum = 0;
+    if (HitBank >= 1)
+      {
+        int IndStatCor[NSTAT];
+        int8_t p[NSTAT];
+        int Sum = 0;
 
-	    Sum += 8 * (2 * gtable[HitBank][GI[HitBank]].ctr + 1);
-	    GI[0] = BI;
-	    for (int i = 0; i < NSTAT; i++)
-	      {
-		IndStatCor[i] = GI[i];
-		if (i != 0)
-		  {
-		    IndStatCor[i] <<= 3;
-		    IndStatCor[i] ^= (pc ^ i) & 7;
-		  }
-		IndStatCor[i] <<= 1;
-		IndStatCor[i] += tage_pred;
-		IndStatCor[i] &= ((1 << (LOGStatCor)) - 1);
-		p[i] = (StatCor[IndStatCor[i]]);
-		Sum += (2 * p[i] + 1);
+        Sum += 8 * (2 * gtable[HitBank][GI[HitBank]].ctr + 1);
+        GI[0] = BI;
+        for (int i = 0; i < NSTAT; i++)
+          {
+        IndStatCor[i] = GI[i];
+        if (i != 0)
+          {
+            IndStatCor[i] <<= 3;
+            IndStatCor[i] ^= (pc ^ i) & 7;
+          }
+        IndStatCor[i] <<= 1;
+        IndStatCor[i] += tage_pred;
+        IndStatCor[i] &= ((1 << (LOGStatCor)) - 1);
+        p[i] = (StatCor[IndStatCor[i]]);
+        Sum += (2 * p[i] + 1);
 
-	      }
-	    bool pred = (Sum >= 0);
+          }
+        bool pred = (Sum >= 0);
         
         {   /*** Multi-dimensional history predictor ***/
 
@@ -893,34 +893,34 @@ public:
             }
         }
 
-	    if (abs (Sum) >= USESTATCORTHRESHOLD)
-	      {
-		pred_taken = pred;	//Use only if very confident 
-	      }
-	    if (tage_pred != pred)
-	      if (abs (Sum) >= USESTATCORTHRESHOLD - 4)
-		if (abs (Sum) <= USESTATCORTHRESHOLD - 2)
-		  {
-		    ctrupdate (CountStatCorThreshold, (pred == taken), 6);
-		    if (CountStatCorThreshold == (1 << 5) - 1)
-		      if (USESTATCORTHRESHOLD > MINUSESTATCORTHRESHOLD)
-			{
-			  CountStatCorThreshold = 0;
-			  USESTATCORTHRESHOLD -= 2;
-			}
-		    if (CountStatCorThreshold == -(1 << 5))
-		      if (USESTATCORTHRESHOLD < MAXUSESTATCORTHRESHOLD)
-			{
-			  CountStatCorThreshold = 0;
-			  USESTATCORTHRESHOLD += 2;
-			}
-		  }
-	    if ((pred != taken) || (abs (Sum) < UPDATESTATCORTHRESHOLD))
-	      for (int i = 0; i < NSTAT; i++)
-		{
-		  ctrupdate (StatCor[IndStatCor[i]], taken, CSTAT);
-		}
-	  }
+        if (abs (Sum) >= USESTATCORTHRESHOLD)
+          {
+        pred_taken = pred;  //Use only if very confident 
+          }
+        if (tage_pred != pred)
+          if (abs (Sum) >= USESTATCORTHRESHOLD - 4)
+        if (abs (Sum) <= USESTATCORTHRESHOLD - 2)
+          {
+            ctrupdate (CountStatCorThreshold, (pred == taken), 6);
+            if (CountStatCorThreshold == (1 << 5) - 1)
+              if (USESTATCORTHRESHOLD > MINUSESTATCORTHRESHOLD)
+            {
+              CountStatCorThreshold = 0;
+              USESTATCORTHRESHOLD -= 2;
+            }
+            if (CountStatCorThreshold == -(1 << 5))
+              if (USESTATCORTHRESHOLD < MAXUSESTATCORTHRESHOLD)
+            {
+              CountStatCorThreshold = 0;
+              USESTATCORTHRESHOLD += 2;
+            }
+          }
+        if ((pred != taken) || (abs (Sum) < UPDATESTATCORTHRESHOLD))
+          for (int i = 0; i < NSTAT; i++)
+        {
+          ctrupdate (StatCor[IndStatCor[i]], taken, CSTAT);
+        }
+      }
 #endif
 
     {   /*** Multi-dimensional history predictor ***/
@@ -958,113 +958,113 @@ public:
     }
 
 #ifdef LOOPPREDICTOR
-	predloop = getloop (pc);	// effective loop prediction at retire  time
+    predloop = getloop (pc);    // effective loop prediction at retire  time
 
-	if (LVALID)
-	  if (tage_pred != predloop)
-	    ctrupdate (WITHLOOP, (predloop == taken), 7);
-	loopupdate (pc, taken, (tage_pred != taken));	//update the loop predictor
+    if (LVALID)
+      if (tage_pred != predloop)
+        ctrupdate (WITHLOOP, (predloop == taken), 7);
+    loopupdate (pc, taken, (tage_pred != taken));   //update the loop predictor
 #endif
-	{
+    {
 
-	  bool ALLOC = ((tage_pred != taken) & (HitBank < NHIST));
+      bool ALLOC = ((tage_pred != taken) & (HitBank < NHIST));
 
-	  // try to allocate a  new entries only if TAGE prediction was wrong
+      // try to allocate a  new entries only if TAGE prediction was wrong
 
-	  if (HitBank > 0)
-	    {
+      if (HitBank > 0)
+        {
 // Manage the selection between longest matching and alternate matching
 // for "pseudo"-newly allocated longest matching entry
 
-	      bool PseudoNewAlloc =
-		(abs (2 * gtable[HitBank][GI[HitBank]].ctr + 1) <= 1);
+          bool PseudoNewAlloc =
+        (abs (2 * gtable[HitBank][GI[HitBank]].ctr + 1) <= 1);
 // an entry is considered as newly allocated if its prediction counter is weak
-	      if (PseudoNewAlloc)
-		{
-		  if (LongestMatchPred == taken)
-		    ALLOC = false;
+          if (PseudoNewAlloc)
+        {
+          if (LongestMatchPred == taken)
+            ALLOC = false;
 // if it was delivering the correct prediction, no need to allocate a new entry
 //even if the overall prediction was false
-		  if (LongestMatchPred != alttaken)
-		    ctrupdate (USE_ALT_ON_NA, (alttaken == taken), 4);
-		}
-	    }
+          if (LongestMatchPred != alttaken)
+            ctrupdate (USE_ALT_ON_NA, (alttaken == taken), 4);
+        }
+        }
 
 //Allocate entries on mispredictions
-	  if (ALLOC)
-	    {
+      if (ALLOC)
+        {
 
 /* for such a huge predictor allocating  several entries is better*/
-	      int T = 3;
-	      for (int i = HitBank + 1; i <= NHIST; i += 1)
-		{
-		  if (gtable[i][GI[i]].u == 0)
-		    {
-		      gtable[i][GI[i]].tag = GTAG[i];
-		      gtable[i][GI[i]].ctr = (taken) ? 0 : -1;
-		      gtable[i][GI[i]].u = 0;
-		      TICK--;
-		      if (TICK < 0)
-			TICK = 0;
-		      if (T == 0)
-			break;
-		      i += 1;
-		      T--;
-		    }
-		  else
-		    TICK++;
-		}
-	    }
+          int T = 3;
+          for (int i = HitBank + 1; i <= NHIST; i += 1)
+        {
+          if (gtable[i][GI[i]].u == 0)
+            {
+              gtable[i][GI[i]].tag = GTAG[i];
+              gtable[i][GI[i]].ctr = (taken) ? 0 : -1;
+              gtable[i][GI[i]].u = 0;
+              TICK--;
+              if (TICK < 0)
+            TICK = 0;
+              if (T == 0)
+            break;
+              i += 1;
+              T--;
+            }
+          else
+            TICK++;
+        }
+        }
 //manage the u  bit
-	  if ((TICK >= (1 << LOGTICK)))
-	    {
-	      TICK = 0;
+      if ((TICK >= (1 << LOGTICK)))
+        {
+          TICK = 0;
 // reset the u bit
-	      for (int i = 1; i <= NHIST; i++)
-		for (int j = 0; j < (1 << logg[i]); j++)
+          for (int i = 1; i <= NHIST; i++)
+        for (int j = 0; j < (1 << logg[i]); j++)
         gtable[i][j].u = (gtable[i][j].u >0) ? gtable[i][j].u -1 : 0;
-	    }
+        }
 
 //update the prediction
 
-	  if (HitBank > 0)
-	    {
-	      ctrupdate (gtable[HitBank][GI[HitBank]].ctr, taken, CWIDTH);
+      if (HitBank > 0)
+        {
+          ctrupdate (gtable[HitBank][GI[HitBank]].ctr, taken, CWIDTH);
 // acts as a protection 
-	      if ((gtable[HitBank][GI[HitBank]].u == 0))
-		{
-		  if (AltBank > 0)
-		    ctrupdate (gtable[AltBank][GI[AltBank]].ctr, taken,
-			       CWIDTH);
-		  if (AltBank == 0)
-		    baseupdate (taken);
-		}
-	    }
-	  else
-	    baseupdate (taken);
+          if ((gtable[HitBank][GI[HitBank]].u == 0))
+        {
+          if (AltBank > 0)
+            ctrupdate (gtable[AltBank][GI[AltBank]].ctr, taken,
+                   CWIDTH);
+          if (AltBank == 0)
+            baseupdate (taken);
+        }
+        }
+      else
+        baseupdate (taken);
 // update the u counter
-	  if (HitBank > 0)
-	    if ( LongestMatchPred != alttaken)
-	      {
-		if (LongestMatchPred == taken)
-		  {
-		    if (gtable[HitBank][GI[HitBank]].u < 7)
-		      gtable[HitBank][GI[HitBank]].u++;
+      if (HitBank > 0)
+        if ( LongestMatchPred != alttaken)
+          {
+        if (LongestMatchPred == taken)
+          {
+            if (gtable[HitBank][GI[HitBank]].u < 7)
+              gtable[HitBank][GI[HitBank]].u++;
 
-		 } 
+         } 
          }
  if (AltBank>0 && alttaken!=taken && gtable[AltBank][GI[AltBank]].u >0)
               gtable[AltBank][GI[AltBank]].u--;
-	      
+          
 //END PREDICTOR UPDATE
 
-	}
+    }
 
       }
 
 //  UPDATE RETIRE HISTORY  
     HistoryUpdate (pc, taken, target, Retire_phist, Retire_ptghist,
-		   Retire_ch_i, Retire_ch_t[0], Retire_ch_t[1]);
+           Retire_ch_i, Retire_ch_t[0], Retire_ch_t[1]);
   }
 
 };
@@ -1107,8 +1107,8 @@ bool   PREDICTOR::GetPrediction(UINT32 PC){
 /////////////////////////////////////////////////////////////
 
 void  PREDICTOR::UpdatePredictor(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget){
-	Fetch_phist = (Fetch_phist << 1) + (PC & 1); // used by MYRANDOM
-	Fetch_phist = (Fetch_phist & ((1 << PHISTWIDTH) - 1)); // used by MYRANDOM
+    Fetch_phist = (Fetch_phist << 1) + (PC & 1); // used by MYRANDOM
+    Fetch_phist = (Fetch_phist & ((1 << PHISTWIDTH) - 1)); // used by MYRANDOM
     mypred->update_brcond (PC & 0x3ffff, resolveDir, branchTarget & 0x7f);
 }
 
