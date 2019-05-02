@@ -61,9 +61,16 @@ class BT9(GzipFile):
         if not self.header:
             self.seek(0)
 
-            while 'BT9_EDGE_SEQUENCE' not in self.header:
+            # I'm not sure why, but putting it directly into self.header bottlenecks
+            # Causing it to take at least 30 min for SHORT_MOBILE_20, when it only takes
+            # 3 seconds this way
+            h = ''
+
+            while True:
                 line = self.readline().decode()
-                self.header += line
+                h += line
+                if 'BT9_EDGE_SEQUENCE' in line:
+                    break
                 node = _NODE_RE.match(line)
                 edge = _EDGE_RE.match(line)
                 if node:
@@ -71,6 +78,7 @@ class BT9(GzipFile):
                 elif edge:
                     self.edges.append(Edge(*edge.groups()))
 
+            self.header = h
             self._edge_list_start = self.tell()
 
     def __next__(self):
@@ -94,4 +102,4 @@ class BT9(GzipFile):
 
 
 if __name__ == '__main__':
-    trace = BT9("../traces/SHORT_MOBILE-27.bt9.trace.gz")
+    trace = BT9("../traces/SHORT_MOBILE-20.bt9.trace.gz")
