@@ -79,5 +79,19 @@ class BT9(GzipFile):
             raise StopIteration
         return self.edges[int(edge)]
 
+    @property
+    def graph(self):
+        try:
+            from graph_tool import Graph
+        except ImportError:
+            return None
+
+        g = Graph()
+        g.add_vertex(len(self.nodes))
+        g.add_edge_list([(e.src_id, e.dest_id) for e in self.edges])
+
+        return g
+
+
 if __name__ == '__main__':
     trace = BT9("../traces/SHORT_MOBILE-27.bt9.trace.gz")
