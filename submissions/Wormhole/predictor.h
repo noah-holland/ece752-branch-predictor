@@ -2,9 +2,9 @@
 #define _PREDICTOR_H_
 
 #include "utils.h"
-#include "tracer.h"
-#include <vector>
 
+#include <vector>
+//#include "tracer.h"
 
 
 /***
@@ -19,29 +19,33 @@
 
 // entry in multi-dimensional history table
 typedef struct {
+#define MULTIDIM_TAG_SIZE           18
     UINT32 pc;                      // 18-bit tag of PC
 #define MULTIDIM_CONF_MIN           (-11)
 #define MULTIDIM_CONF_MAX           4
+#define LOG_MULTIDIM_CONF_SIZE      4
     int conf;                       // 4-bit confidence
-#define MULTIDIM_LHIST_SIZE         301
+#define MULTIDIM_LHIST_SIZE         512
+#define LOG_MULTIDIM_LHIST_SIZE     15
     vector<bool> lhist;             // MULTIDIM_LHIST_SIZE local history bits
                                     // plus log2(MULTIDIM_LHIST_SIZE) bits per multidim_t to track current size of local history vector
 #define MULTIDIM_LSAT_MIN           (-16)
 #define MULTIDIM_LSAT_MAX           15
 #define MULTIDIM_LSAT_THRES         16
-#define MULTIDIM_LSAT_SIZE          256
+#define MULTIDIM_LSAT_SIZE          512
+#define LOG_MULTIDIM_LSAT_SIZE      5
     int lsat[MULTIDIM_LSAT_SIZE];   // MULTIDIM_LSAT_SIZE 5-bit saturating counters
 } multidim_t;
-
 // multi-dimensional history table
-#define MULTIDIMS_SIZE              64
+#define MULTIDIMS_SIZE              8
+#define MULTIDIM_REPL_SIZE              3
 vector<multidim_t> multidims;       // table of multidim_t, MULTIDIMS_SIZE entries
-                                    // plus log2(MULTIDIMS_SIZE) bits per multidim_t to maintain ranking (for replacement)
+ // plus log2(MULTIDIMS_SIZE) bits per multidim_t to maintain ranking (for replacement)
 
 // stat correlator threshold for allocating an entry in multidims
-#define MULTIDIMS_STATCOR_THRES     64
+#define MULTIDIMS_STATCOR_THRES     2
 
-// log2(MULTIM_LHIST_SIZE) bits to store number of iterations of current inner loop, taken from last hit in loop predictor 
+// log2(MULTIM_LHIST_SIZE) bits to store number of iterations of current inner loop, taken from last hit in loop predictor
 int multidim_lastloop = 0;
 
 // variables for propagating prediction info to the update function
@@ -58,19 +62,35 @@ UINT32 multidim_idx = 0;
 #define INITHISTLENGTH      // uses the "best" history length we found
 #define STATCOR         // Use the Statistical Corrector predictor
 #define LOOPPREDICTOR       // Use the loop predictor
+#define FOLDEDINDEXING
 
-#define NHIST 19        // 15 tagged tables + 1 bimodal table
-#define LOGB 28         // log of number of entries in bimodal predictor
+#define NHIST 14        // 15 tagged tables + 1 bimodal table
+#define LOGB 16         // log of number of entries in bimodal predictor
 #define HYSTSHIFT 2     // sharing an hysteris bit between 4 bimodal predictor entries
 #define LOGG (LOGB-4)       // initial definition was with 2K entries per tagged tables
 
+// Local global branch history ratio
+#define LSTEP 2
+#define LG_RATIO 60
+
 //The Best  set of history lengths
-int m[NHIST + 1] =      {0, 3, 8, 12, 17, 33, 35, 67, 97, 138, 195, 330, 517, 1193, 1741, 1930, 2147, 2384, 2567, 2933};
+int l[NHIST + 1] = { 0, 3, 8, 12, 17, 33, 35, 67, 97, 138, 195, 330, 517, 1193 , 1741};
+int m[NHIST + 1] = { 0, 3, 8, 12, 17, 33, 35, 67, 97, 138, 195, 330, 517, 1193 , 1741};
 
 #ifndef INITHISLENGTH
 #define MINHIST 8       // shortest history length
 #define MAXHIST 2000        // longest history length
+//#define MINCGHIST 2
+//#define MAXCGHIST 13
+#define MINCLHIST 2
+#define MAXCLHIST 12
 #endif
+
+// LHT parameters
+#define LHTBITS 6
+#define LHTSIZE (1<<LHTBITS)
+#define LHTMASK (LHTSIZE-1)
+#define LHISTWIDTH ((MAXCLHIST>(MAXHIST/LG_RATIO))?MAXCLHIST:(MAXHIST/LG_RATIO))
 
 #define PHISTWIDTH 16       // width of the path history
 
@@ -85,7 +105,7 @@ int m[NHIST + 1] =      {0, 3, 8, 12, 17, 33, 35, 67, 97, 138, 195, 330, 517, 11
 //Statistical corrector parameters
 #define NSTAT 5
 #define CSTAT 6
-#define LOGStatCor (LOGG+1) // the Statistical Corrector predictor features 5 * 1K entries
+#define LOGStatCor (LOGG-1) // the Statistical Corrector predictor features 5 * 1K entries
 int8_t StatCor[1 << (LOGStatCor)];
 int8_t USESTATCORTHRESHOLD;
 int8_t CountStatCorThreshold;
@@ -98,34 +118,184 @@ int8_t CountStatCorThreshold;
 #define LOOPTAG 10      //tag width in the loop predictor
 
 // utility class for index computation
-// this is the cyclic shift register for folding 
+// this is the cyclic shift register for folding
 // a long global history into a smaller number of bits; see P. Michaud's PPM-like predictor at CBP-1
-class folded_history
-{
+class GlobalHistoryBuffer {
+#ifdef FOLDEDINDEXING
+  // This implementation is used to save the simulation time.
+private:
+  int ptr;
+  bool bhr[HISTBUFFERLENGTH];
+
 public:
-  unsigned comp;
-  int CLENGTH;
-  int OLENGTH;
-  int OUTPOINT;
-
-    folded_history ()
-  {
+  int init() {
+    for(int i=0; i<HISTBUFFERLENGTH; i++) { bhr[i] = false; }
+    return MAXHIST;
   }
 
-  void init (int original_length, int compressed_length)
-  {
-    comp = 0;
-    OLENGTH = original_length;
-    CLENGTH = compressed_length;
-    OUTPOINT = OLENGTH % CLENGTH;
+  void push(bool taken) {
+    ptr--;
+    bhr[ptr & (HISTBUFFERLENGTH-1)] = taken;
   }
 
-  void update (uint8_t * h, int PT)
-  {
-    comp = (comp << 1) | h[PT & (HISTBUFFERLENGTH - 1)];
-    comp ^= h[(PT + OLENGTH) & (HISTBUFFERLENGTH - 1)] << OUTPOINT;
-    comp ^= (comp >> CLENGTH);
-    comp &= (1 << CLENGTH) - 1;
+  // read n_th history
+  bool read(int n) { return bhr[(n+ptr) & (HISTBUFFERLENGTH-1)]; }
+#else
+private:
+  bool bhr[MAXHIST];
+
+public:
+  int init() {
+    for(int i=0; i<MAXHIST; i++) { bhr[i] = false; }
+    return MAXHIST;
+  }
+
+  void push(bool taken) {
+    for(int i=MAXHIST-2; i>=0; i--) { bhr[i+1] = bhr[i]; }
+    bhr[0] = taken;
+  }
+
+  bool read(int n) {
+    return bhr[n];
+  }
+#endif
+};
+
+
+//class GlobalHistory : public GlobalHistoryBuffer {
+//#ifdef FOLDEDINDEXING
+//public:
+class folded_history : public GlobalHistoryBuffer {
+
+#ifdef FOLDEDINDEXING
+public:
+    unsigned comp;
+    int CLENGTH;
+    int OLENGTH;
+    int OUTPOINT;
+
+    folded_history()
+    {
+    }
+
+    void init(int original_length, int compressed_length)
+    {
+        comp = 0;
+        OLENGTH = original_length;
+        CLENGTH = compressed_length;
+        OUTPOINT = OLENGTH % CLENGTH;
+    }
+
+    void update(uint8_t * h, int PT)
+    {
+        comp = (comp << 1) | h[PT & (HISTBUFFERLENGTH - 1)];
+        comp ^= h[(PT + OLENGTH) & (HISTBUFFERLENGTH - 1)] << OUTPOINT;
+        comp ^= (comp >> CLENGTH);
+        comp &= (1 << CLENGTH) - 1;
+    }
+
+};
+folded_history Retire_ch_i[NHIST + 1];  //utility for computing TAGE indices
+folded_history Retire_ch_t[3][NHIST + 1];   //utility for computing TAGE tags
+folded_history ch_c[NSTAT];
+
+
+    void setup(int *m, int *l, int *t, int *c, int size) {
+        for (int i = 0; i < NHIST; i++) {
+            Retire_ch_i[i].init(m[i], l[i]);
+            Retire_ch_t[0][i].init(m[i], t[i]);
+            Retire_ch_t[1][i].init(m[i], t[i] - 1);
+            Retire_ch_t[2][i].init(m[i], t[i] - 2);
+        }
+        for (int i = 0; i < NSTAT; i++) {
+            ch_c[i].init(c[i], size);
+        }
+    }
+
+    uint32_t gidx(int n, int length, int clength) {
+        return Retire_ch_i[n].comp;
+    }
+
+    uint32_t gtag(int n, int length, int clength) {
+        return Retire_ch_t[0][n].comp ^ (Retire_ch_t[1][n].comp << 1) ^ (Retire_ch_t[2][n].comp << 2);
+    }
+
+    uint32_t cgidx(int n, int length, int clength) {
+        return ch_c[n].comp;
+    }
+
+#else
+
+
+    void updateFoldedHistory() { }
+
+    void setup(int *m, int *l, int *t, int *c, int size) { }
+
+    uint32_t comp(int length, int clength) {
+        uint32_t comp = 0;
+        for (int i = 0; i < length; i++) {
+            comp ^= (read(i) << (i % clength));
+        }
+        return comp;
+    }
+
+    uint32_t gidx(int n, int length, int clength) {
+        return comp(length, clength);
+    }
+
+    uint32_t gtag(int n, int length, int clength) {
+        return comp(length, clength) ^
+            (comp(length, clength - 1) << 1) ^
+            (comp(length, clength - 2) << 2);
+    }
+
+    uint32_t cgidx(int n, int length, int clength) {
+        return comp(length, clength);
+    }
+public:
+    void update(bool taken) {
+        push(taken);
+        updateFoldedHistory();
+    }
+
+#endif
+
+
+
+
+class LocalHistory {
+  uint32_t lht[LHTSIZE];
+
+  uint32_t getIndex(uint32_t pc) {
+    pc = pc ^ (pc >> LHTBITS) ^ (pc >> (2*LHTBITS));
+    return pc & (LHTSIZE-1);
+  }
+
+public:
+  int init() {
+    for(int i=0; i<LHTSIZE; i++) {
+      lht[i] = 0;
+    }
+    return LHISTWIDTH * LHTSIZE;
+  }
+
+  void update(uint32_t pc, bool taken) {
+    lht[getIndex(pc)] <<= 1;
+    lht[getIndex(pc)] |= taken ? 1 : 0;
+    lht[getIndex(pc)] &= (1<<LHISTWIDTH) - 1;
+  }
+
+  uint32_t read(uint32_t pc, int length, int clength) {
+    uint32_t h = lht[getIndex(pc)];
+    h &= (1 << length) - 1;
+
+    uint32_t v = 0;
+    while(length > 0) {
+      v ^= h;
+      h >>= clength;
+      length -= clength;
+    }
+    return v & ((1 << clength) - 1);
   }
 };
 
@@ -141,7 +311,7 @@ public:
   uint8_t age;          //3 bits
   bool dir;         // 1 bit
 
-  //47 bits per entry    
+  //47 bits per entry
     lentry ()
   {
     confid = 0;
@@ -156,7 +326,7 @@ public:
 };
 #endif
 
-class bentry            // TAGE bimodal table entry  
+class bentry            // TAGE bimodal table entry
 {
 public:
   int8_t hyst;
@@ -187,8 +357,9 @@ int Fetch_phist;        //path history
 uint8_t ghist[HISTBUFFERLENGTH];
 int Retire_ptghist;
 int Retire_phist;       //path history
-folded_history Retire_ch_i[NHIST + 1];  //utility for computing TAGE indices
-folded_history Retire_ch_t[2][NHIST + 1];   //utility for computing TAGE tags
+LocalHistory lhistory; // local history table
+int BANKS; //For indexing bimodal table
+
 
 #ifdef LOOPPREDICTOR
 lentry *ltable;         //loop predictor table
@@ -208,8 +379,8 @@ gentry *gtable[NHIST + 1];  // tagged TAGE tables
 int TB[NHIST + 1];      // tag width for the different tagged tables
 int logg[NHIST + 1];        // log of number entries of the different tagged tables
 
-int GI[NHIST + 1];      // indexes to the different tables are computed only once  
-int GTAG[NHIST + 1];        // tags for the different tables are computed only once  
+int GI[NHIST + 1];      // indexes to the different tables are computed only once
+int GTAG[NHIST + 1];        // tags for the different tables are computed only once
 int BI;             // index of the bimodal table
 
 bool pred_taken;        // prediction
@@ -240,6 +411,7 @@ public:
     Retire_phist = 0;
     for (int i = 0; i < HISTBUFFERLENGTH; i++)
       ghist[0] = 0;
+  lhistory.init();
 #ifndef INITHISTLENGTH
     m[1] = MINHIST;
     m[NHIST] = MAXHIST;
@@ -250,6 +422,14 @@ public:
                 (double) MINHIST,
                 (double) (i -
                       1) / (double) ((NHIST - 1)))) + 0.5);
+      }
+
+    for (int i=0; i<NHIST; i++) {
+      l[i] = (int)(m[i] / LG_RATIO);
+      l[i] = (l[i] > LHISTWIDTH) ? LHISTWIDTH : l[i];
+      if(i < STEP[LSTEP]) {
+        l[i] = 0;
+      }
       }
     for (int i = 2; i <= NHIST; i++)
       if (m[i] <= m[i - 1] + 2)
@@ -327,9 +507,12 @@ public:
 
     for (int i = 1; i <= NHIST; i++)
       {
-    Retire_ch_i[i].init (m[i], (logg[i]));
-    Retire_ch_t[0][i].init (Retire_ch_i[i].OLENGTH, TB[i]);
-    Retire_ch_t[1][i].init (Retire_ch_i[i].OLENGTH, TB[i] - 1);
+    Retire_ch_i[i].init(m[i], (logg[i]));
+    Retire_ch_t[0][i].init(Retire_ch_i[i].OLENGTH, TB[i]);
+    Retire_ch_t[1][i].init(Retire_ch_i[i].OLENGTH, TB[i] - 1);
+    //ch_i[i].init (m[i], (logg[i]));
+    //ch_t[0][i].init (ch_i[i].OLENGTH, TB[i]);
+    //ch_t[1][i].init ch_i[i].OLENGTH, TB[i] - 1);
       }
 
 //allocation of the all predictor tables
@@ -369,6 +552,7 @@ public:
       }
     fprintf (stdout, "\n");
     STORAGESIZE += (1 << LOGB) + (1 << (LOGB - HYSTSHIFT));
+    STORAGESIZE += LHISTWIDTH * LHTSIZE;
     fprintf (stdout, "TAGE %d bytes, ", STORAGESIZE / 8);
 
 
@@ -382,6 +566,10 @@ public:
     STORAGESIZE += CSTAT * (1 << (LOGStatCor));
     fprintf (stdout, "Stat Cor %d bytes, ", CSTAT * (1 << (LOGStatCor)) / 8);
 #endif
+    int sizeMultidimEntry = (MULTIDIM_TAG_SIZE + LOG_MULTIDIM_CONF_SIZE + LOG_MULTIDIM_LSAT_SIZE*MULTIDIM_LSAT_SIZE + MULTIDIM_REPL_SIZE + LOG_MULTIDIM_LHIST_SIZE + MULTIDIM_LHIST_SIZE);
+    fprintf (stdout, "Wormhole %d bytes, %d per entry \n",  sizeMultidimEntry*MULTIDIMS_SIZE/ 8, sizeMultidimEntry/8);
+    STORAGESIZE += sizeMultidimEntry*MULTIDIMS_SIZE;
+
     fprintf (stdout, "TOTAL STORAGESIZE= %d bytes\n", STORAGESIZE / 8);
 #endif
   }
@@ -390,31 +578,31 @@ public:
 
   int bindex (uint32_t pc)
   {
-    return ((pc) & ((1 << (LOGB)) - 1));
+    return ((pc) & (((1 << (LOGB)) - 1)^ lhistory.read(pc, l[BANKS], logg[BANKS])));
   }
 
 // the index functions for the tagged tables uses path history as in the OGEHL predictor
 //F serves to mix path history
-  int F (int A, int size, int bank)
-  {
+  int F(int A, int size, int bank, int width) {
     int A1, A2;
+      int rot = (bank + 1) % width;
     A = A & ((1 << size) - 1);
-    A1 = (A & ((1 << logg[bank]) - 1));
-    A2 = (A >> logg[bank]);
-    A2 =
-      ((A2 << bank) & ((1 << logg[bank]) - 1)) + (A2 >> (logg[bank] - bank));
+      A1 = (A & ((1 << width) - 1));
+      A2 = (A >> width);
+      A2 = ((A2 << rot) & ((1 << width) - 1)) + (A2 >> (width - rot));
     A = A1 ^ A2;
-    A = ((A << bank) & ((1 << logg[bank]) - 1)) + (A >> (logg[bank] - bank));
+      A = ((A << rot) & ((1 << width) - 1)) + (A >> (width - rot));
     return (A);
   }
-// gindex computes a full hash of pc, ghist and phist
+// gindex computes a full hash of pc, ghist, lhistory and phist
   int gindex (unsigned int pc, int bank, int hist, folded_history * ch_i)
   {
     int index;
+    BANKS = bank;
     int M = (m[bank] > PHISTWIDTH) ? PHISTWIDTH : m[bank];
-    index =
+    index = lhistory.read(pc, l[bank], logg[bank]) ^
       pc ^ (pc >> (abs (logg[bank] - bank) + 1)) ^
-      ch_i[bank].comp ^ F (hist, M, bank);
+      ch_i[bank].comp ^ F (hist, M, bank,logg[bank]);
     return (index & ((1 << (logg[bank])) - 1));
   }
 
@@ -422,7 +610,7 @@ public:
   uint16_t gtag (unsigned int pc, int bank, folded_history * ch0,
          folded_history * ch1)
   {
-    int tag = pc ^ ch0[bank].comp ^ (ch1[bank].comp << 1);
+    int tag = gidx(bank, m[bank], logg[bank]) ^ pc ^ ch0[bank].comp ^ (ch1[bank].comp << 1);
     return (tag & ((1 << TB[bank]) - 1));
   }
 
@@ -505,7 +693,7 @@ public:
                 multidim_lastloop = 0;
             }
         }
-        
+
         if (ltable[index].CurrentIter + 1 == ltable[index].NbIter)
           return (!(ltable[index].dir));
         else
@@ -520,7 +708,7 @@ public:
                     }
                 }
             }
-            
+
             return ((ltable[index].dir));
         }
       }
@@ -535,7 +723,7 @@ public:
     if (LHIT >= 0)
       {
     int index = (LI ^ ((LIB >> LHIT) << 2)) + LHIT;
-//already a hit 
+//already a hit
     if (LVALID)
       {
         if (Taken != predloop)
@@ -560,7 +748,7 @@ public:
       {
         ltable[index].confid = 0;
         ltable[index].NbIter = 0;
-//treat like the 1st encounter of the loop 
+//treat like the 1st encounter of the loop
       }
     if (Taken != ltable[index].dir)
       {
@@ -569,7 +757,7 @@ public:
         if (ltable[index].confid < 7)
           ltable[index].confid++;
         if (ltable[index].NbIter < 3)
-          //just do not predict when the loop count is 1 or 2     
+          //just do not predict when the loop count is 1 or 2
           {
 // free the entry
             ltable[index].dir = Taken;
@@ -659,7 +847,7 @@ public:
     else
       alttaken = getbim ();
     LongestMatchPred = (gtable[HitBank][GI[HitBank]].ctr >= 0);
-//if the entry is recognized as a newly allocated entry and 
+//if the entry is recognized as a newly allocated entry and
 //USE_ALT_ON_NA is positive  use the alternate prediction
     if ((USE_ALT_ON_NA < 0)
         || (abs (2 * gtable[HitBank][GI[HitBank]].ctr + 1) > 1))
@@ -686,6 +874,8 @@ public:
       {
         GI[i] = gindex (pc, i, Retire_phist, Retire_ch_i);
         GTAG[i] = gtag (pc, i, Retire_ch_t[0], Retire_ch_t[1]);
+        //GI[i] = gindex (pc, i, Retire_phist, ch_i);
+       //GTAG[i] = gtag (pc, i, Retire_ch_t[0], ch_t[1]);
       }
 #ifdef SHARINGTABLES
     for (int i = 2; i <= STEP1 - 1; i++)
@@ -697,7 +887,7 @@ public:
     for (int i = STEP3 + 1; i <= NHIST; i++)
       GI[i] = ((GI[STEP3] & 7) ^ (i - STEP3)) + (GI[i] << 3);
 #endif
-    BI = pc & ((1 << LOGB) - 1);
+    BI = pc & (((1 << LOGB) - 1)^ lhistory.read(pc, l[BANKS], logg[BANKS]));
     Tagepred ();
 
     pred_taken = tage_pred;
@@ -732,7 +922,7 @@ public:
         bool pred = (Sum >= 0);
         if (abs (Sum) >= USESTATCORTHRESHOLD)
           {
-        pred_taken = pred;  //Use only if very confident 
+        pred_taken = pred;  //Use only if very confident
           }
       }
 #endif
@@ -741,7 +931,7 @@ public:
     pred_taken = ((WITHLOOP >= 0) && (LVALID)) ? predloop : pred_taken;
 #endif
       }
-      
+
       {   /*** Multi-dimensional history predictor ***/
 
           if (multidim_lastloop != 0) {
@@ -763,6 +953,8 @@ public:
                           multidim_idx <<= 1;
                           multidim_idx |= multidims[i].lhist[multidim_lastloop-2];
                           multidim_idx <<= 1;
+                          //multidim_idx |= multidims[i].lhist[multidim_lastloop-3];
+                          //multidim_idx <<= 1;
                           if (multidims[i].lhist.size() >= (((unsigned int)multidim_lastloop * 2))) {
                               multidim_idx |= multidims[i].lhist[(multidim_lastloop * 2) - 1];
                           } else {
@@ -780,16 +972,34 @@ public:
                           } else {
                               multidim_idx |= multidims[i].lhist[2];
                           }
+                          if (multidims[i].lhist.size() >= (((unsigned int)multidim_lastloop * 3))) {
+                              multidim_idx |= multidims[i].lhist[(multidim_lastloop * 3) - 1];
+                          } else {
+                              if (multidims[i].lhist.size() > 4) multidim_idx |= multidims[i].lhist[4];
+                          }
+                          multidim_idx <<= 1;
+                          if (multidims[i].lhist.size() >= (((unsigned int)multidim_lastloop * 3) - 1)) {
+                              multidim_idx |= multidims[i].lhist[(multidim_lastloop * 3) - 2];
+                          } else {
+                              if (multidims[i].lhist.size() > 3) multidim_idx |= multidims[i].lhist[3];
+                          }
+                          multidim_idx <<= 1;
+                          if (multidims[i].lhist.size() >= (((unsigned int)multidim_lastloop * 3) + 1)) {
+                              multidim_idx |= multidims[i].lhist[(multidim_lastloop * 3)];
+                          } else {
+                              multidim_idx |= multidims[i].lhist[2];
+                          }
+
                           multidim_idx <<= 1;
                           multidim_idx |= multidims[i].lhist[1];
                           multidim_idx <<= 1;
                           multidim_idx |= multidims[i].lhist[0];
-                          
+
                           multidim_idx = multidim_idx % MULTIDIM_LSAT_SIZE;
 
                           // get prediction from saturating counter
                           multidim_pred = multidims[i].lsat[multidim_idx];
-                          
+
                           if (multidims[i].conf >= 0) {
                               if (abs((2*multidim_pred) + 1) >= MULTIDIM_LSAT_THRES) {
                                   return (multidim_pred >= 0);
@@ -800,7 +1010,7 @@ public:
               }
           }
       }
-      
+
     return pred_taken;
   }
 
@@ -823,7 +1033,9 @@ public:
     ghist[Y & (HISTBUFFERLENGTH - 1)] = istaken;
     X = (X << 1) + PATHBIT;
     X = (X & ((1 << PHISTWIDTH) - 1));
-//prepare next index and tag computations for user branchs 
+    // Update local history
+    lhistory.update(pc, taken);
+//prepare next index and tag computations for user branchs
     for (int i = 1; i <= NHIST; i++)
       {
         H[i].update (ghist, Y);
@@ -865,7 +1077,7 @@ public:
 
           }
         bool pred = (Sum >= 0);
-        
+
         {   /*** Multi-dimensional history predictor ***/
 
             // only allocate entries into multidims if this branch is difficult for TAGE
@@ -904,7 +1116,7 @@ public:
 
         if (abs (Sum) >= USESTATCORTHRESHOLD)
           {
-        pred_taken = pred;  //Use only if very confident 
+        pred_taken = pred;  //Use only if very confident
           }
         if (tage_pred != pred)
           if (abs (Sum) >= USESTATCORTHRESHOLD - 4)
@@ -1032,6 +1244,7 @@ public:
           for (int i = 1; i <= NHIST; i++)
         for (int j = 0; j < (1 << logg[i]); j++)
           gtable[i][j].u >>= 1;
+          //if(gtable[i][j].u >0) gtable[i][j].u -  1;
 
         }
 
@@ -1040,7 +1253,7 @@ public:
       if (HitBank > 0)
         {
           ctrupdate (gtable[HitBank][GI[HitBank]].ctr, taken, CWIDTH);
-// acts as a protection 
+// acts as a protection
           if ((gtable[HitBank][GI[HitBank]].u == 0))
         {
           if (AltBank > 0)
@@ -1062,6 +1275,7 @@ public:
               gtable[HitBank][GI[HitBank]].u++;
 
           }
+
           }
 //END PREDICTOR UPDATE
 
@@ -1069,9 +1283,10 @@ public:
 
       }
 
-//  UPDATE RETIRE HISTORY  
+//  UPDATE RETIRE HISTORY
     HistoryUpdate (pc, taken, target, Retire_phist, Retire_ptghist,
-           Retire_ch_i, Retire_ch_t[0], Retire_ch_t[1]);
+          // Retire_ch_i, Retire_ch_t[0], Retire_ch_t[1]);
+        Retire_ch_i, Retire_ch_t[0], Retire_ch_t[1]);
   }
 
 };
@@ -1086,9 +1301,9 @@ class PREDICTOR{
   // The interface to the four functions below CAN NOT be changed
 
   PREDICTOR(void);
-  bool    GetPrediction(UINT32 PC);  
-  void    UpdatePredictor(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget);
-  void    TrackOtherInst(UINT32 PC, OpType opType, UINT32 branchTarget);
+  bool    GetPrediction(UINT32 PC, bool& btbANSF, bool& btbATSF, bool& btbDYN);
+  void    UpdatePredictor(UINT32 PC, OpType opType, bool resolveDir, bool predDir, UINT32 branchTarget, bool btbANSF, bool btbATSF, bool btbDYN);
+  void    TrackOtherInst(UINT32 PC, OpType opType, bool resolveDir, UINT32 branchTarget);
 
   // Contestants can define their own functions below
 
@@ -1099,13 +1314,13 @@ class PREDICTOR{
 /////////////////////////////////////////////////////////////
 
 PREDICTOR::PREDICTOR(void){
-    mypred = new my_predictor();    
+    mypred = new my_predictor();
 }
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 
-bool   PREDICTOR::GetPrediction(UINT32 PC){
+bool   PREDICTOR::GetPrediction(UINT32 PC, bool& btbANSF, bool& btbATSF, bool& btbDYN){
     return mypred->predict_brcond (PC & 0x3ffff);
 }
 
@@ -1113,7 +1328,7 @@ bool   PREDICTOR::GetPrediction(UINT32 PC){
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 
-void  PREDICTOR::UpdatePredictor(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget){
+void  PREDICTOR::UpdatePredictor(UINT32 PC, OpType opType, bool resolveDir, bool predDir, UINT32 branchTarget, bool btbANSF, bool btbATSF, bool btbDYN){
     Fetch_phist = (Fetch_phist << 1) + (PC & 1); // used by MYRANDOM
     Fetch_phist = (Fetch_phist & ((1 << PHISTWIDTH) - 1)); // used by MYRANDOM
     mypred->update_brcond (PC & 0x3ffff, resolveDir, branchTarget & 0x7f);
@@ -1122,7 +1337,7 @@ void  PREDICTOR::UpdatePredictor(UINT32 PC, bool resolveDir, bool predDir, UINT3
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 
-void    PREDICTOR::TrackOtherInst(UINT32 PC, OpType opType, UINT32 branchTarget){
+void    PREDICTOR::TrackOtherInst(UINT32 PC, OpType opType, bool resolveDir, UINT32 branchTarget){
 
   // This function is called for instructions which are not
   // conditional branches, just in case someone decides to design
