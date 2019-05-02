@@ -48,13 +48,13 @@ class Node(SimpleNamespace):
                      clss=clss, behavior=behavior, taken_cnt=int(taken_cnt or 0), not_taken_cnt=int(not_taken_cnt or 0), tgt_cnt=int(tgt_cnt or 0), mnemonic=mnemonic)
 
 class BT9(GzipFile):
-    header = ''
-    nodes  = []
-    edges  = []
 
     _edge_list_start = None
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.header = ''
+        self.nodes  = []
+        self.edges  = []
         self._readHeader()
 
     def _readHeader(self):
